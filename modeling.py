@@ -65,6 +65,8 @@ import jieba
 import unicodedata
 import re
 
+jieba.set_dictionary('model/dict.txt.big')
+
 def pre_process(text):
     move_chr = r'[^\u4e00-\u9fffA-Za-z,\s]'
     
@@ -81,7 +83,7 @@ def pre_process(text):
     text = re.sub(move_chr, '', text)
     
     # segmentate
-    text = list(jieba.cut(text, cut_all=True))
+    text = list(jieba.cut_for_search(text))
     
     # slove spaces problem
     text = ' '.join(text)
@@ -281,11 +283,12 @@ llda.save('model/llda.bin')
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.svm import SVC # C-Support Vector Classification
 
+vectorizer = TfidfVectorizer()
+
 def train_svm():
     global svm_train_x, svm_train_y, svm_test_x, svm_test_y
     # vectorizer
-    vectorizer = TfidfVectorizer()
-    
+        
     # trian pre-process
     svm_train_x = train["segmentate"].apply(lambda x: ' '.join(x))
     svm_train_x = vectorizer.fit_transform(svm_train_x)
@@ -333,6 +336,22 @@ mnb_test_diag = diagnosis(real = svm_test_y, pred = mnb.predict(svm_test_x))
 mnb_test_diag.classification_report()
 mnb_test_diag.plt_cm(save_dir = "img/svm test cm")
 
+#%% test mnb
+def mnb_test(text):
+    text = ' '.join(pre_process(text))
+    token = vectorizer.transform([text])
+    
+    prob = mnb.predict_proba(token)
+    
+    class_labels = mnb.classes_
+        
+    df = pd.DataFrame(prob, columns=class_labels).T.sort_values(by=0, ascending=False)
+    
+    print(df)
+
+#text = "心雜音"
+#mnb_test(text)
+
 #%% fasttext
 #
 #
@@ -361,7 +380,7 @@ w2v.save_model('model/fasttext.bin')
 #%% try nearest neighbors
 w2v.get_nearest_neighbors('眼')  # 獲取最近字
 w2v.get_nearest_neighbors('腳')  # 獲取最近字
-w2v.get_nearest_neighbors('關')  # 獲取最近字
+w2v.get_nearest_neighbors('膝蓋')  # 獲取最近字
 
 #%% key value
 # 
@@ -400,7 +419,7 @@ key_value.sort_values().tail(10)
 key_value = pd.read_pickle("model/key_value.pkl")
 w2v = fasttext.load_model("model/fasttext.bin")
 
-def doc_to_key_vec(doc):
+def doc_to_key(doc):
     # key value and word vector
     keyvalue = pd.DataFrame([key_value.get(word, 0.1) for word in doc])
     word_vectors = pd.DataFrame([w2v.get_word_vector(word) for word in doc])
@@ -411,12 +430,29 @@ def doc_to_key_vec(doc):
     # key vector
     key_vector = key_matrix.sum(axis = 0)
     
-    return key_vector
+    # get unique index
+    unique_indices, inverse_indices = np.unique(doc, return_inverse=True)
+    
+    # add the value with same index 
+    aggregated_values = np.bincount(inverse_indices, weights=keyvalue[0])
+    
+    # merge the result
+    key_value_sort = pd.DataFrame(np.column_stack((unique_indices, aggregated_values)))
+    
+    # the keywords 
+    keywords = key_value_sort.sort_values(by=1, ascending=False)
+    key_words = keywords.iloc[:10, 0].reset_index(drop=True)
+    
+    return key_vector, key_words
 
 content['segmentate'] = content["內文擴展"].apply(pre_process)
-key_vec = content["segmentate"].apply(doc_to_key_vec)
+
+keys = content["segmentate"].apply(doc_to_key)
+key_vec = keys.apply(lambda x: x[0])
+key_word = keys.apply(lambda x: x[1])
 
 key_vec.to_pickle('model/key_vec.pkl')
+key_word.to_pickle('model/key_word.pkl')
 
 #%% doc similarity
 # 
