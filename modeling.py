@@ -10,6 +10,7 @@ Runs in Python 3.12.4.
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 
 #%% read data
 # 
@@ -19,6 +20,10 @@ import matplotlib.pyplot as plt
 #%% read data
 content = pd.read_csv('data/content.csv', usecols=['科別', '問題主旨', '內文'])
 content['內文擴展'] = content['問題主旨'] + '\n' + content['內文']
+
+#%% 比較前人論文
+if False:
+    content = content[content['科別'].isin(['肝膽腸胃科', '耳鼻喉科', '泌尿科'])]
 
 #%% train and test
 from sklearn.model_selection import train_test_split
@@ -34,7 +39,7 @@ train, test = train_test_split(content, test_size=0.3, random_state=1, stratify=
 #%% Put train ans often question together
 def train_explode():
     '''
-    Put train ans often question together
+    Put train and often question together
 
     Returns
     -------
@@ -149,6 +154,7 @@ llda.summary()
 #%% diagnosis function
 from sklearn.metrics import confusion_matrix
 from sklearn.metrics import classification_report
+from sklearn.metrics import f1_score
 
 class diagnosis():
     def __init__(self, real, pred):
@@ -157,6 +163,7 @@ class diagnosis():
         
         self.name = sorted(set(self.real)) # the label names
         self.confusion_matrix() # confusion matrix
+        self.f1_score() # confusion matrix
         
     def classification_report(self):
         print(classification_report(self.real, self.pred))
@@ -164,10 +171,15 @@ class diagnosis():
     def confusion_matrix(self):
         self.cm = confusion_matrix(self.real, self.pred)
         
+    def f1_score(self):
+        f1 = f1_score(self.real, self.pred, average='macro')
+        print("F1-score:", f1)
+    
     def plt_cm(self, save_dir = None):
         '''
         Plot confusion matrix. 
         '''
+        
         plt.figure(figsize=(19.2, 10.8)) # set figure size
 
         plt.rc('font', family='Microsoft JhengHei') # set chinese font
@@ -176,7 +188,11 @@ class diagnosis():
         
         # confusion matrix set up
         fig, ax = plt.subplots()
-        cax = ax.matshow(self.cm, cmap='Blues')
+        cmap = mcolors.LinearSegmentedColormap.from_list("light_blues", ["#FFFFFF", "#1e6091"])
+        cax = ax.matshow(self.cm, cmap = cmap)
+        
+        # add a color bar
+        plt.colorbar(cax)
         
         # axe set up 
         ax.set_xlabel('Predicted')
@@ -193,9 +209,6 @@ class diagnosis():
         # add a value to each square
         for (i, j), value in np.ndenumerate(self.cm):
             ax.text(j, i, value, ha='center', va='center', color='black')
-        
-        # add a color bar
-        plt.colorbar(cax)
         
         # save figure
         if save_dir:
@@ -349,7 +362,7 @@ def mnb_test(text):
     
     print(df)
 
-#text = "心雜音"
+text = "心雜音"
 #mnb_test(text)
 
 #%% fasttext
@@ -481,3 +494,4 @@ plt.hist(similarity_matrix[content.index[index]], bins=20)
 for near in near_index[:5]:
     print("sim:", similarity_matrix[content.index[index]][near])
     print_doc(near)
+
