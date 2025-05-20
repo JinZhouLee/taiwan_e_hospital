@@ -133,9 +133,12 @@ class pred:
     def print_result(self):
         sim_question = pd.DataFrame()
         sim_question["科別"] = [data.loc[near, "科別"] for near in self.near_index[:10]]
-        # sim_question["問題主旨"] = [data.loc[near, "問題主旨"] for near in self.near_index[:10]]
-        sim_question["問題主旨"] = [f'[{data.loc[near, "問題主旨"]}](https://sp1.hso.mohw.gov.tw/doctor/All/ShowDetail.php?q_no={data.loc[near, "q_no"]})'\
-                                for near in self.near_index[:10]]
+        
+        sim_question["問題主旨"] = [data.loc[near, "問題主旨"] for near in self.near_index[:10]]
+        # short the name
+        sim_question['問題主旨'] = sim_question['問題主旨'].apply(lambda x: x[:20] + '...' if len(x) > 20 else x)
+        sim_question['問題主旨'] = [f'[{sim_question["問題主旨"][i]}](https://sp1.hso.mohw.gov.tw/doctor/All/ShowDetail.php?q_no={data.loc[self.near_index[i], "q_no"]})' for i in range(10)]
+        
         sim_question["關鍵字"] = [", ".join(key_word.iloc[near]) for near in self.near_index[:10]]
         
         sim_question["相似度"] = [self.cos_sim[near] for near in self.near_index[:10]]
@@ -148,7 +151,6 @@ class pred:
             }
         
         return result
-    
 
 #%% GUI
 #
@@ -168,12 +170,18 @@ app = dash.Dash(__name__)
 # 定義應用佈局
 app.layout = html.Div([
     html.H1("台灣 e 院推薦系統"),
+    html.P([
+        "資料來自 ",
+        html.A("台灣 e 院", href="https://sp1.hso.mohw.gov.tw/doctor/Index1.php", target="_blank"),
+        "，更多技術細節參閱 ", 
+        html.A("GitHub Page", href="https://github.com/JinZhouLee/taiwan_e_hospital", target="_blank"),
+        "。"
+    ]), 
     dcc.Textarea(id="user-input", placeholder="請輸入文字", style={"width": "100%", "height": "150px"}),
     html.Button("提交", id="submit-button", n_clicks=0),
-    html.Hr(),
-    html.H3("分詞："),
-    html.Div(id="seg"), 
-    html.Hr(),
+    #html.H3("分詞："),
+    #html.Div(id="seg"), 
+    #html.Hr(),
     html.H3("關鍵字"),
     html.Div(id="keywords"), 
     html.Hr(),
@@ -187,7 +195,8 @@ app.layout = html.Div([
 
 # 定義回調函數
 @app.callback(
-    [Output("seg", "children"),
+    [
+     # Output("seg", "children"),
      Output("keywords", "children"),
      Output("pred", "children"), 
      Output("sim_question", "children")],
@@ -201,17 +210,24 @@ def update_output(n_clicks, value):
         result = pred(value).print_result()
         
         # show segmentate
-        seg = f"{result['seg']}"
+        #seg = ', '.join(result['seg'])
         keywords = ', '.join(result['keywords'])
+        
         # show pred
+        # round the output
+        result['pred']['機率'] = np.round(result["pred"]['機率'], 2).astype(str)
         pred_table = dash_table.DataTable(data = result["pred"].to_dict('records'))
+        
         # show sim question
+        # round the output
+        result['sim_question']['相似度'] = np.round(result['sim_question']['相似度'], 2).astype(str)
         sim_question = dash_table.DataTable(
             data = result["sim_question"].to_dict('records'), 
-            columns=[{"name": col, "id": col, "presentation": "markdown"} for col in result["sim_question"].columns])
+            columns = [{"name": col, "id": col, "presentation": "markdown"} for col in result["sim_question"].columns]
+            )
         
-        return seg, keywords, pred_table, sim_question
-    return None, None, None, None
+        return keywords, pred_table, sim_question
+    return None, None, None
 
 # 啟動應用
 if __name__ == "__main__":
