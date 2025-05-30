@@ -169,7 +169,7 @@ app = dash.Dash(__name__)
 
 # 定義應用佈局
 app.layout = html.Div([
-    html.H1("台灣 e 院推薦系統"),
+    html.H1("台灣 e 院搜檢系統"),
     html.P([
         "資料來自 ",
         html.A("台灣 e 院", href="https://sp1.hso.mohw.gov.tw/doctor/Index1.php", target="_blank"),
